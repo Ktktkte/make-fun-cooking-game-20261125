@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Rush Hour Kitchen</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html, body { margin: 0; padding: 0; background: #23202b; height: 100%; overflow: hidden; }
+  #wrap { display: flex; align-items: center; justify-content: center; height: 100vh; }
+  canvas { background: #f7ead7; box-shadow: 0 0 0 4px #191622, 0 18px 50px rgba(0,0,0,.55);
+           width: min(96vw, calc(96vh * 1.6)); height: auto; display: block; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="game" width="960" height="600"></canvas></div>
+<script>
+'use strict';
+/* Rush Hour Kitchen — an original order-rush cooking game.
+   Orders arrive on the board with a countdown. Click ingredients on the
+   counter (or press 1-6) to build the dish on the plate, then SERVE
+   before the order's patience runs out. Correct dish: points + tip.
+   Wrong dish or expired order: points lost. One 3-minute shift. */
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = 960, H = 600;
+
+/* ---- data ---- */
+const INGREDIENTS = [
+  { id: 'bun',     name: 'Bun',     key: '1', color: '#e8b96a', dark: '#b98a3e' },
+  { id: 'patty',   name: 'Patty',   key: '2', color: '#7a4a2b', dark: '#54301a' },
+  { id: 'lettuce', name: 'Lettuce', key: '3', color: '#58b368', dark: '#357a44' },
+  { id: 'tomato',  name: 'Tomato',  key: '4', color: '#e05252', dark: '#a52f2f' },
+  { id: 'cheese',  name: 'Cheese',  key: '5', color: '#f5c542', dark: '#c79a17' },
+  { id: 'sauce',   name: 'Sauce',   key: '6', color: '#f08a24', dark: '#b25f10' },
+];
+const DISHES = [
+  { name: 'Classic',      recipe: ['bun', 'patty', 'lettuce', 'tomato'] },
+  { name: 'Cheese Melt',  recipe: ['bun', 'patty', 'cheese', 'sauce'] },
+  { name: 'Garden Stack', recipe: ['bun', 'lettuce', 'tomato', 'cheese'] },
+  { name: 'Double Trouble', recipe: ['bun', 'patty', 'patty', 'cheese', 'sauce'] },
+];
+const SHIFT_SECONDS = 180;
+const ORDER_PATIENCE = 45;
+const ORDER_EVERY_MS = 14000;
+
+/* ---- state ---- */
+const state = {
+  screen: 'title', // title | playing | over
+  score: 0, served: 0, lost: 0, wrong: 0,
+  shiftLeft: SHIFT_SECONDS,
+  plate: [],           // ingredient ids on the plate, in order added
+  orders: [],          // { dish, left, max }
+  nextOrderIn: 4000,   // ms until next order spawns
+  message: '', messageUntil: 0, messageColor: '#2b2b3a',
+  hover: null,         // hovered bin id
+  lastTick: 0,
+};
+let orderSeq = 0;
+
+function ing(id) { return INGREDIENTS.find(i => i.id === id); }
+function dishByName(name) { return DISHES.find(d => d.name === name); }
+
+function showMessage(text, color) {
+  state.message = text; state.messageColor = color || '#2b2b3a';
+  state.messageUntil = performance.now() + 1600;
+}
+
+function spawnOrder(dishName) {
+  const dish = dishName ? dishByName(dishName) : DISHES[Math.floor(Math.random() * DISHES.length)];
+  if (state.orders.length >= 3) return;
+  state.orders.push({ dish, left: ORDER_PATIENCE, max: ORDER_PATIENCE, key: ++orderSeq });
+}
+
+function sameMultiset(a, b) {
+  if (a.length !== b.length) return false;
+  const count = {};
+  for (const x of a) count[x] = (count[x] || 0) + 1;
+  for (const x of b) { if (!count[x]) return false; count[x]--; }
+  return true;
+}
+
+function servePlate() {
+  if (state.screen !== 'playing') return;
+  if (state.plate.length === 0) { showMessage('Plate is empty — add ingredients first!', '#a52f2f'); return; }
+  const idx = state.orders.findIndex(o => sameMultiset(state.plate, o.dish.recipe));
+  if (idx >= 0) {
+    const o = state.orders[idx];
+    const tip = Math.round(o.left) * 2;
+    state.score += 100 + tip;
+    state.served++;
+    showMessage('Served ' + o.dish.name + '! +'+ (100 + tip) + ' (tip $' + tip + ')', '#2e7d32');
+    beep(660, 0.12); setTimeout(() => beep(880, 0.14), 110);
+    state.orders.splice(idx, 1);
+  } else {
+    state.score = Math.max(0, state.score - 15);
+    state.wrong++;
+    showMessage('Wrong dish! The customer sent it back. -15', '#a52f2f');
+    beep(180, 0.2);
+  }
+  state.plate = [];
+}
+
+function trashPlate() {
+  if (state.screen !== 'playing') return;
+  state.plate = [];
+  showMessage('Plate cleared.', '#5a5348');
+}
+
+function startShift() {
+  state.screen = 'playing';
+  state.score = 0; state.served = 0; state.lost = 0; state.wrong = 0;
+  state.shiftLeft = SHIFT_SECONDS;
+  state.plate = [];
+  state.orders = [];
+  state.nextOrderIn = 2500;
+  state.message = '';
+  spawnOrder('Classic');
+}
+
+function endShift() {
+  state.screen = 'over';
+  beep(440, 0.15); setTimeout(() => beep(330, 0.2), 150); setTimeout(() => beep(220, 0.3), 320);
+}
+
+/* ---- audio (tiny WebAudio beeps, guarded) ---- */
+let audioCtx = null;
+function beep(freq, dur) {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = 'sine'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + dur);
+  } catch (e) { /* headless / no audio: stay silent */ }
+}
+
+/* ---- update ---- */
+function update(dtMs) {
+  if (state.screen !== 'playing') return;
+  state.shiftLeft -= dtMs / 1000;
+  if (state.shiftLeft <= 0) { state.shiftLeft = 0; endShift(); return; }
+  state.nextOrderIn -= dtMs;
+  if (state.nextOrderIn <= 0) { spawnOrder(); state.nextOrderIn = ORDER_EVERY_MS; }
+  for (let i = state.orders.length - 1; i >= 0; i--) {
+    const o = state.orders[i];
+    o.left -= dtMs / 1000;
+    if (o.left <= 0) {
+      state.orders.splice(i, 1);
+      state.lost++;
+      state.score = Math.max(0, state.score - 25);
+      showMessage('Order expired — a customer walked out! -25', '#a52f2f');
+      beep(140, 0.25);
+    }
+  }
+}
+
+/* ---- drawing helpers ---- */
+function rr(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function text(str, x, y, size, color, align, weight) {
+  ctx.fillStyle = color;
+  ctx.font = (weight || 'bold') + ' ' + size + 'px Arial, sans-serif';
+  ctx.textAlign = align || 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(str, x, y);
+}
+function fmtTime(s) {
+  s = Math.max(0, Math.ceil(s));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+function drawIngredientIcon(id, cx, cy, r) {
+  const c = ing(id);
+  ctx.fillStyle = c.color;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = c.dark; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+  if (id === 'bun') { ctx.fillStyle = '#fff3d6'; ctx.beginPath(); ctx.arc(cx - r * 0.35, cy - r * 0.3, r * 0.16, 0, Math.PI * 2); ctx.arc(cx + r * 0.3, cy - r * 0.25, r * 0.16, 0, Math.PI * 2); ctx.fill(); }
+  if (id === 'lettuce') { ctx.strokeStyle = c.dark; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx - r * 0.6, cy); ctx.quadraticCurveTo(cx, cy - r * 0.7, cx + r * 0.6, cy); ctx.stroke(); }
+  if (id === 'tomato') { ctx.fillStyle = '#ff8a8a'; ctx.beginPath(); ctx.arc(cx, cy, r * 0.45, 0, Math.PI * 2); ctx.fill(); }
+  if (id === 'cheese') { ctx.fillStyle = c.dark; ctx.beginPath(); ctx.arc(cx - r * 0.3, cy, r * 0.1, 0, Math.PI * 2); ctx.arc(cx + r * 0.3, cy + r * 0.2, r * 0.1, 0, Math.PI * 2); ctx.fill(); }
+  if (id === 'sauce') { ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(cx - r * 0.55, cy - r * 0.2); ctx.quadraticCurveTo(cx, cy + r * 0.5, cx + r * 0.55, cy - r * 0.2); ctx.stroke(); }
+  if (id === 'patty') { ctx.fillStyle = '#5d3a20'; rr(cx - r * 0.62, cy - r * 0.28, r * 1.24, r * 0.56, r * 0.28); ctx.fill(); }
+}
+
+/* ---- layout ---- */
+const HEADER_H = 64;
+const BOARD = { x: 24, y: HEADER_H + 16, w: 300, h: 500 };
+const BINS = INGREDIENTS.map((ingr, i) => ({
+  id: ingr.id, x: 352 + (i % 3) * 196, y: HEADER_H + 44 + Math.floor(i / 3) * 132, w: 180, h: 116,
+}));
+const PLATE = { x: 352, y: 372, w: 580, h: 120 };
+const SERVE_BTN = { x: 352, y: 508, w: 280, h: 56 };
+const TRASH_BTN = { x: 652, y: 508, w: 280, h: 56 };
+const START_BTN = { x: 330, y: 400, w: 300, h: 64 };
+
+function drawHeader() {
+  ctx.fillStyle = '#2b2b3a'; ctx.fillRect(0, 0, W, HEADER_H);
+  text('RUSH HOUR KITCHEN', 24, 33, 28, '#ffd166', 'left');
+  const low = state.shiftLeft <= 30;
+  text('SHIFT  ' + fmtTime(state.shiftLeft), 620, 33, 26, low ? '#ff6b6b' : '#ffffff', 'left');
+  text('SCORE  ' + state.score, W - 24, 33, 26, '#ffd166', 'right');
+}
+
+function drawBoard() {
+  ctx.fillStyle = '#fff8ec'; rr(BOARD.x, BOARD.y, BOARD.w, BOARD.h, 14); ctx.fill();
+  ctx.strokeStyle = '#d9c39a'; ctx.lineWidth = 2; rr(BOARD.x, BOARD.y, BOARD.w, BOARD.h, 14); ctx.stroke();
+  text('ORDER BOARD', BOARD.x + BOARD.w / 2, BOARD.y + 26, 20, '#5a4632');
+  ctx.fillStyle = '#d9c39a'; ctx.fillRect(BOARD.x + 20, BOARD.y + 46, BOARD.w - 40, 2);
+  if (state.orders.length === 0) {
+    text('No orders yet —', BOARD.x + BOARD.w / 2, BOARD.y + 130, 17, '#8a7a63');
+    text('the rush is coming!', BOARD.x + BOARD.w / 2, BOARD.y + 156, 17, '#8a7a63');
+  }
+  state.orders.forEach((o, i) => {
+    const y = BOARD.y + 64 + i * 138;
+    const urgent = o.left <= 10;
+    ctx.fillStyle = urgent ? '#ffe3e3' : '#ffffff';
+    rr(BOARD.x + 14, y, BOARD.w - 28, 122, 10); ctx.fill();
+    ctx.strokeStyle = urgent ? '#e05252' : '#e0d3b8'; ctx.lineWidth = 2;
+    rr(BOARD.x + 14, y, BOARD.w - 28, 122, 10); ctx.stroke();
+    text(o.dish.name, BOARD.x + 28, y + 22, 19, '#2b2b3a', 'left');
+    text(fmtTime(o.left), BOARD.x + BOARD.w - 28, y + 22, 19, urgent ? '#c22e2e' : '#2e7d32', 'right');
+    const frac = Math.max(0, o.left / o.max);
+    ctx.fillStyle = '#eee2cb'; rr(BOARD.x + 28, y + 40, BOARD.w - 56, 10, 5); ctx.fill();
+    ctx.fillStyle = frac > 0.5 ? '#58b368' : frac > 0.25 ? '#f5c542' : '#e05252';
+    if (frac > 0) { rr(BOARD.x + 28, y + 40, (BOARD.w - 56) * frac, 10, 5); ctx.fill(); }
+    o.dish.recipe.forEach((rid, j) => {
+      const cx = BOARD.x + 46 + j * 52, cy = y + 82;
+      drawIngredientIcon(rid, cx, cy, 17);
+      text(ing(rid).name, cx, cy + 32, 11, '#5a4632');
+    });
+  });
+  text('Served ' + state.served + '   •   Lost ' + state.lost, BOARD.x + BOARD.w / 2, BOARD.y + BOARD.h - 18, 15, '#8a7a63');
+}
+
+function drawBins() {
+  text('INGREDIENTS — click or press 1-6', 352, HEADER_H + 30, 15, '#8a6a42', 'left');
+  BINS.forEach(b => {
+    const c = ing(b.id);
+    const hov = state.hover === b.id;
+    ctx.fillStyle = hov ? '#fff3d6' : '#ffffff';
+    rr(b.x, b.y, b.w, b.h, 12); ctx.fill();
+    ctx.strokeStyle = hov ? c.dark : '#d9c39a'; ctx.lineWidth = hov ? 3 : 2;
+    rr(b.x, b.y, b.w, b.h, 12); ctx.stroke();
+    drawIngredientIcon(b.id, b.x + 40, b.y + 46, 26);
+    text(c.name, b.x + 78, b.y + 34, 20, '#2b2b3a', 'left');
+    text('key ' + c.key, b.x + 78, b.y + 62, 14, '#8a7a63', 'left');
+    ctx.fillStyle = '#f0e2c8'; rr(b.x + b.w - 44, b.y + b.h - 34, 32, 22, 6); ctx.fill();
+    text(c.key, b.x + b.w - 28, b.y + b.h - 22, 15, '#5a4632');
+  });
+}
+
+function drawPlateArea() {
+  ctx.fillStyle = '#fff8ec'; rr(PLATE.x, PLATE.y, PLATE.w, PLATE.h, 14); ctx.fill();
+  ctx.strokeStyle = '#d9c39a'; ctx.lineWidth = 2; rr(PLATE.x, PLATE.y, PLATE.w, PLATE.h, 14); ctx.stroke();
+  text('YOUR PLATE', PLATE.x + 18, PLATE.y + 20, 15, '#8a6a42', 'left');
+  if (state.plate.length === 0) {
+    text('Empty — add ingredients from the counter', PLATE.x + PLATE.w / 2, PLATE.y + 68, 17, '#a08a68');
+  } else {
+    ctx.fillStyle = '#e8e2d2';
+    ctx.beginPath(); ctx.ellipse(PLATE.x + 150, PLATE.y + 84, 130, 22, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#b9a888'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(PLATE.x + 150, PLATE.y + 84, 130, 22, 0, 0, Math.PI * 2); ctx.stroke();
+    const n = state.plate.length;
+    state.plate.forEach((rid, i) => {
+      const c = ing(rid);
+      const y = PLATE.y + 78 - i * 10;
+      ctx.fillStyle = c.color;
+      rr(PLATE.x + 50, y - 8, 200, 14, 7); ctx.fill();
+      ctx.strokeStyle = c.dark; ctx.lineWidth = 1.5;
+      rr(PLATE.x + 50, y - 8, 200, 14, 7); ctx.stroke();
+    });
+    text('On the plate:', PLATE.x + 320, PLATE.y + 48, 15, '#8a6a42', 'left');
+    text(state.plate.map(rid => ing(rid).name).join(' + '),
+      PLATE.x + 320, PLATE.y + 74, 15, '#2b2b3a', 'left');
+    text(state.plate.length + ' ingredient' + (state.plate.length > 1 ? 's' : '') + ' on the plate',
+      PLATE.x + 320, PLATE.y + 98, 14, '#8a7a63', 'left');
+  }
+  ctx.fillStyle = '#2e7d32'; rr(SERVE_BTN.x, SERVE_BTN.y, SERVE_BTN.w, SERVE_BTN.h, 12); ctx.fill();
+  text('SERVE  (Space)', SERVE_BTN.x + SERVE_BTN.w / 2, SERVE_BTN.y + 29, 22, '#ffffff');
+  ctx.fillStyle = '#b03a2e'; rr(TRASH_BTN.x, TRASH_BTN.y, TRASH_BTN.w, TRASH_BTN.h, 12); ctx.fill();
+  text('TRASH PLATE  (Del)', TRASH_BTN.x + TRASH_BTN.w / 2, TRASH_BTN.y + 29, 20, '#ffffff');
+}
+
+function drawMessage() {
+  if (!state.message || performance.now() > state.messageUntil) return;
+  ctx.font = 'bold 18px Arial, sans-serif';
+  const w = ctx.measureText(state.message).width + 44;
+  ctx.fillStyle = 'rgba(43,43,58,0.92)';
+  rr(W / 2 - w / 2, 84, w, 40, 20); ctx.fill();
+  text(state.message, W / 2, 105, 18, state.messageColor === '#2b2b3a' ? '#ffffff' : state.messageColor);
+}
+
+function drawTitle() {
+  ctx.fillStyle = 'rgba(35,32,43,0.94)'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#ffd166'; rr(180, 96, 600, 130, 18); ctx.fill();
+  text('RUSH HOUR', W / 2, 138, 52, '#2b2b3a');
+  text('KITCHEN', W / 2, 192, 52, '#b03a2e');
+  text('Orders fly in. Build each dish on the plate.', W / 2, 268, 20, '#ffffff');
+  text('Click ingredients or press 1-6, then SERVE before the timer runs out.', W / 2, 298, 18, '#e8e2d2');
+  text('One shift lasts 3 minutes. Correct dish: +100 and a tip.', W / 2, 324, 18, '#e8e2d2');
+  text('Wrong dish -15. Expired order -25.', W / 2, 350, 18, '#e8e2d2');
+  ctx.fillStyle = '#2e7d32'; rr(START_BTN.x, START_BTN.y, START_BTN.w, START_BTN.h, 14); ctx.fill();
+  text('START SHIFT  (Enter)', W / 2, START_BTN.y + 33, 22, '#ffffff');
+  text('A game by an AI agent for make.fun', W / 2, 500, 14, '#9a94a8');
+}
+
+function drawOver() {
+  ctx.fillStyle = 'rgba(35,32,43,0.94)'; ctx.fillRect(0, 0, W, H);
+  text('SHIFT OVER!', W / 2, 150, 52, '#ffd166');
+  text('Final score: ' + state.score, W / 2, 230, 34, '#ffffff');
+  text('Dishes served: ' + state.served + '    Orders lost: ' + state.lost + '    Wrong dishes: ' + state.wrong,
+    W / 2, 286, 20, '#e8e2d2');
+  const best = state.served >= 8 ? 'Head chef material!' : state.served >= 4 ? 'A solid shift!' : 'The rush got the better of you — try again!';
+  text(best, W / 2, 330, 20, '#ffd166');
+  ctx.fillStyle = '#2e7d32'; rr(START_BTN.x, START_BTN.y, START_BTN.w, START_BTN.h, 14); ctx.fill();
+  text('PLAY AGAIN  (R)', W / 2, START_BTN.y + 33, 22, '#ffffff');
+}
+
+function draw() {
+  ctx.fillStyle = '#f7ead7'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#f3ddba';
+  for (let x = 0; x < W; x += 48) ctx.fillRect(x, HEADER_H, 24, 8);
+  ctx.fillStyle = '#e8d3ac'; ctx.fillRect(0, H - 26, W, 26);
+  ctx.fillStyle = '#d9c39a';
+  for (let x = 0; x < W; x += 52) ctx.fillRect(x, H - 26, 26, 26);
+  drawHeader();
+  if (state.screen === 'title') { drawBoard(); drawBins(); drawPlateArea(); drawTitle(); return; }
+  drawBoard(); drawBins(); drawPlateArea(); drawMessage();
+  if (state.screen === 'over') drawOver();
+}
+
+/* ---- input ---- */
+function pointIn(r, x, y) { return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h; }
+function canvasPos(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * (W / r.width), y: (e.clientY - r.top) * (H / r.height) };
+}
+canvas.addEventListener('click', e => {
+  const p = canvasPos(e);
+  if (state.screen === 'title') { if (pointIn(START_BTN, p.x, p.y)) startShift(); return; }
+  if (state.screen === 'over') { if (pointIn(START_BTN, p.x, p.y)) startShift(); return; }
+  for (const b of BINS) {
+    if (pointIn(b, p.x, p.y)) {
+      if (state.plate.length < 8) { state.plate.push(b.id); beep(520, 0.06); }
+      return;
+    }
+  }
+  if (pointIn(SERVE_BTN, p.x, p.y)) servePlate();
+  else if (pointIn(TRASH_BTN, p.x, p.y)) trashPlate();
+});
+canvas.addEventListener('mousemove', e => {
+  const p = canvasPos(e);
+  const hit = BINS.find(b => pointIn(b, p.x, p.y));
+  state.hover = hit ? hit.id : null;
+});
+document.addEventListener('keydown', e => {
+  if (state.screen === 'title' && e.key === 'Enter') { startShift(); return; }
+  if (state.screen === 'over' && (e.key === 'r' || e.key === 'R' || e.key === 'Enter')) { startShift(); return; }
+  if (state.screen !== 'playing') return;
+  const ingr = INGREDIENTS.find(i => i.key === e.key);
+  if (ingr) { if (state.plate.length < 8) { state.plate.push(ingr.id); beep(520, 0.06); } return; }
+  if (e.key === ' ') { e.preventDefault(); servePlate(); }
+  if (e.key === 'Delete' || e.key === 'Backspace') trashPlate();
+});
+
+/* ---- deterministic screenshot states (?shot=start|play|end) ---- */
+function applyShot() {
+  const q = new URLSearchParams(location.search);
+  const shot = q.get('shot');
+  if (!shot) return;
+  if (shot === 'start') { state.screen = 'title'; }
+  if (shot === 'play') {
+    state.screen = 'playing';
+    state.score = 240; state.served = 2; state.lost = 0;
+    state.shiftLeft = 134;
+    state.plate = ['bun', 'patty', 'lettuce'];
+    state.orders = [
+      { dish: dishByName('Classic'), left: 32, max: ORDER_PATIENCE, key: 1 },
+      { dish: dishByName('Cheese Melt'), left: 18, max: ORDER_PATIENCE, key: 2 },
+    ];
+    state.nextOrderIn = 9000;
+  }
+  if (shot === 'end') {
+    state.screen = 'over';
+    state.score = 1240; state.served = 9; state.lost = 2; state.wrong = 1;
+    state.shiftLeft = 0;
+  }
+}
+applyShot();
+
+/* ---- main loop ---- */
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(100, now - last);
+  last = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* test hook (used by the maker's own verification only) */
+window.__game = { state, startShift, servePlate, trashPlate, spawnOrder, DISHES, INGREDIENTS };
+</script>
+</body>
+</html>
