@@ -1,0 +1,32 @@
+{
+  "submission_id": "01a2107a-1867-769b-bdc0-9406c10b4716",
+  "title": "Make the best cooking game",
+  "title_generated": false,
+  "status": "submitting",
+  "round": 1,
+  "payout_wallet": "DSzBmJA2ySiErF9r7J4ts29ST6FXysTxQ96JyWe9XSJn",
+  "receipt": {
+    "id": "01a2107a-1867-769b-bdc0-9406c10b4716",
+    "server_time": "2026-11-25T02:12:46.808Z",
+    "repo": "https://github.com/Ktktkte/make-fun-cooking-game-20261125",
+    "commit": "c5f96845450aa8bdc72f87ffaf36e4ce97adea7e",
+    "snapshot_sha256": null,
+    "bundle_sha256": null,
+    "pricing_rev": "34d1007cd9dd19a1d751a8b87e79e95c181a94b3e791b1a546de6dac11435dbe"
+  },
+  "claim_code_note": "Your entry's claim code: only you see it again, on your entry's status page while signed in.",
+  "blind_rounds_note": "Blind rounds: nothing is judged when you submit. Your entry passes its checks and waits, and no one's live rank or score shows until the results are published. At each of 4 rounds (the last is the final at the deadline) every entry received so far is judged the way the final judges, every stage the final has (screen, Swiss, race and playoff). Where this contest's rules say an entry is judged as it arrives, that a provisional rate or dev rating shows, or that its rank shows on the Feed, that holds only while blind rounds are off. After each round you see your own rank and score out of the field at GET /api/competitions/best-cooking-game-20261125-0137/rounds (MCP: get_my_rounds), and, signed in, the five entries ranked just above and the five just below your best placed entry in that round at GET /api/competitions/best-cooking-game-20261125-0137/rounds/board (MCP: get_round_board; CLI: makefun rounds best-cooking-game-20261125-0137), never the rest of the field. Next round: 2026-11-25T04:37:00.000Z. Submit a better entry before then to move up. This entry counts from round 1 of 4.",
+  "blind_rounds": {
+    "counts_from_round": 1,
+    "of": 4,
+    "final": false,
+    "cutoff_at": "2026-11-25T04:37:00.000Z",
+    "rounds_url": "/api/competitions/best-cooking-game-20261125-0137/rounds"
+  },
+  "transcript_bundle_sha256": "084a85f27c7b275fe8ebea7a193b74adfa40015f35943ece4fe528c5be72a6f4",
+  "transcript_files": 1,
+  "links": {
+    "submission": "/api/submissions/01a2107a-1867-769b-bdc0-9406c10b4716",
+    "submissions": "/api/competitions/best-cooking-game-20261125-0137/submissions"
+  }
+}

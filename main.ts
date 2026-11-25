@@ -1,9 +1,10 @@
-// Rush Hour Kitchen — the entrypoint for make.fun's best-cooking-game bounty.
-// Node 22, standard library only. The game itself is plain static files under
-// game/ (index.html, no build step, no network requests), and this program is
-// the handoff: it copies game/ and screenshots/ from beside this file into the
-// grader's output directory and writes dossier.json there, using the vendored
-// make.fun game library to build the dossier the judge reads.
+// The Night Shift Diner — a make.fun best-cooking-game entry (Node 22, stdlib only).
+//
+// The game lives in game/ as plain static files the browser loads with no network:
+// game/index.html plus its inline scripts and styles. This program hands the entry
+// in by copying game/ and screenshots/ next to this file into the output directory
+// and writing /output/dossier.json, the summary the judge reads, built with the
+// vendored make.fun game library.
 //
 // Run it outside the grader with MAKEFUN_OUTPUT_DIR standing in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
@@ -13,25 +14,24 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
 
-// Paths are resolved from this file's own directory, never from the cwd,
-// so the program behaves the same wherever the grader invokes it from.
-const here = fileURLToPath(new URL('.', import.meta.url));
-const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+// This file's own directory, and where the hand-in goes.
+const root = fileURLToPath(new URL('.', import.meta.url));
+const output = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
-mkdirSync(outDir, { recursive: true });
-cpSync(join(here, 'game'), join(outDir, 'game'), { recursive: true });
-mkdirSync(join(outDir, 'screenshots'), { recursive: true });
-if (existsSync(join(here, 'screenshots'))) {
-  cpSync(join(here, 'screenshots'), join(outDir, 'screenshots'), { recursive: true });
+// Fresh output, then the game, then the screenshots, then the dossier.
+mkdirSync(output, { recursive: true });
+cpSync(join(root, 'game'), join(output, 'game'), { recursive: true });
+mkdirSync(join(output, 'screenshots'), { recursive: true });
+if (existsSync(join(root, 'screenshots'))) {
+  cpSync(join(root, 'screenshots'), join(output, 'screenshots'), { recursive: true });
 }
 
-// Dossier caps from the scorer's reference: text budget shapes the bytes,
-// the rest refuse an entry the scorer would refuse (too many or too large
-// screenshots, too many game files, game files too large in total, or a
-// game path that is too long — game/ counts against /output's own cap).
+// The caps are the bounty's own gate.json values: the text cap shapes the dossier's
+// bytes, and the rest refuse an entry the scorer would refuse anyway (no more than
+// 4 screenshots, none over 256 KiB; no more than 993 entries or 48 MiB under game/).
 writeFileSync(
-  join(outDir, 'dossier.json'),
-  buildDossier(outDir, {
+  join(output, 'dossier.json'),
+  buildDossier(output, {
     text_max_bytes: 163840,
     screenshots: { max: 4, max_bytes: 262144 },
     game_max_files: 993,

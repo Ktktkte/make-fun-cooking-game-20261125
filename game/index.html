@@ -2,415 +2,614 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Rush Hour Kitchen</title>
+<title>The Night Shift Diner</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  html, body { margin: 0; padding: 0; background: #23202b; height: 100%; overflow: hidden; }
-  #wrap { display: flex; align-items: center; justify-content: center; height: 100vh; }
-  canvas { background: #f7ead7; box-shadow: 0 0 0 4px #191622, 0 18px 50px rgba(0,0,0,.55);
-           width: min(96vw, calc(96vh * 1.6)); height: auto; display: block; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: #14100d;
+    font-family: "Trebuchet MS", Verdana, sans-serif;
+    color: #f5e6c8;
+    overflow: hidden;
+  }
+  #app {
+    width: 1280px; height: 720px;
+    margin: 0 auto;
+    background: linear-gradient(180deg, #2b1d16 0%, #241610 55%, #1c100a 100%);
+    display: flex; flex-direction: column;
+    position: relative;
+  }
+  /* ---------- header ---------- */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 20px;
+    background: #3a241a;
+    border-bottom: 3px solid #f2a541;
+  }
+  header h1 { font-size: 26px; letter-spacing: 2px; color: #ffd98a; }
+  header h1 small { display: block; font-size: 11px; letter-spacing: 4px; color: #d98a5f; }
+  .hud { display: flex; gap: 22px; align-items: center; font-size: 18px; }
+  .hud b { color: #ffd98a; }
+  #timer { font-size: 26px; font-weight: bold; color: #fff; background: #5a2d1e; padding: 2px 12px; border-radius: 8px; }
+  #timer.low { color: #ff6b5e; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: .45; } }
+  .hearts { font-size: 20px; letter-spacing: 2px; color: #ff6b5e; }
+  /* ---------- middle row: board + floor ---------- */
+  #mid { display: flex; flex: 1; min-height: 0; }
+  #board {
+    width: 300px; padding: 12px;
+    background: #20140d;
+    border-right: 2px solid #4a2c1c;
+  }
+  #board h2 { font-size: 15px; letter-spacing: 2px; color: #f2a541; margin-bottom: 8px; }
+  .ticket {
+    background: #f5e6c8; color: #3a241a;
+    border-radius: 6px; padding: 8px 10px; margin-bottom: 8px;
+    cursor: pointer; border: 3px solid transparent;
+  }
+  .ticket.sel { border-color: #2fa98f; box-shadow: 0 0 0 2px #2fa98f inset; }
+  .ticket .dish { font-weight: bold; font-size: 17px; }
+  .ticket .steps { font-size: 13px; color: #7a4a22; margin-top: 2px; }
+  .ticket .tseat { font-size: 12px; color: #a06a3a; }
+  .ticket .mini { height: 6px; background: #e0cba4; border-radius: 3px; margin-top: 6px; overflow: hidden; }
+  .ticket .mini i { display: block; height: 100%; background: #2fa98f; }
+  #board .empty { color: #a98a68; font-style: italic; font-size: 14px; }
+  #floor {
+    flex: 1; padding: 12px 16px;
+    display: flex; flex-direction: column;
+  }
+  #floor h2 { font-size: 15px; letter-spacing: 2px; color: #f2a541; margin-bottom: 8px; }
+  #seats { display: flex; gap: 18px; flex: 1; }
+  .seat {
+    flex: 1; background: #33241a; border-radius: 10px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px; padding: 10px; border: 2px solid #4a2c1c;
+  }
+  .seat.occupied { background: #40301f; }
+  .seat .face {
+    width: 74px; height: 74px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 40px; color: #2b1d16;
+    border: 3px solid rgba(255,255,255,.25);
+  }
+  .seat .who { font-size: 14px; color: #ffd98a; }
+  .seat .want { font-size: 15px; font-weight: bold; }
+  .seat .pat { width: 90%; height: 10px; background: #1c100a; border-radius: 5px; overflow: hidden; }
+  .seat .pat i { display: block; height: 100%; background: #2fa98f; }
+  .seat .pat i.warn { background: #f2a541; }
+  .seat .pat i.crit { background: #ff6b5e; }
+  .seat .empty-msg { color: #a98a68; font-style: italic; font-size: 14px; }
+  /* ---------- counter (ingredients) ---------- */
+  #counter {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px; background: #6b4423;
+    border-top: 3px solid #8b5a2b; border-bottom: 3px solid #8b5a2b;
+  }
+  #counter .label { font-size: 13px; letter-spacing: 2px; color: #ffd98a; margin-right: 6px; }
+  .ing {
+    background: #f5e6c8; color: #3a241a; border-radius: 20px;
+    padding: 5px 12px; font-size: 14px; font-weight: bold;
+    border: 2px solid transparent;
+  }
+  .ing.need { border-color: #2fa98f; background: #c9f2e4; }
+  /* ---------- stations ---------- */
+  #kitchen { display: flex; gap: 12px; padding: 12px 16px 16px; align-items: stretch; }
+  #stations { display: flex; gap: 10px; flex: 1; }
+  .station {
+    flex: 1; background: #3a241a; border: 2px solid #5a3a24; border-radius: 10px;
+    padding: 10px 8px; cursor: pointer; text-align: center; position: relative;
+  }
+  .station:hover { border-color: #f2a541; }
+  .station.next { border-color: #2fa98f; box-shadow: 0 0 12px rgba(47,169,143,.6); }
+  .station.busy { border-color: #f2a541; }
+  .station .key {
+    display: inline-block; background: #f2a541; color: #2b1d16; font-weight: bold;
+    border-radius: 4px; padding: 1px 7px; font-size: 13px; margin-bottom: 4px;
+  }
+  .station .name { font-size: 17px; font-weight: bold; color: #ffd98a; }
+  .station .hint { font-size: 12px; color: #c9a37e; margin-top: 2px; }
+  .station .prog { height: 8px; background: #1c100a; border-radius: 4px; margin-top: 8px; overflow: hidden; }
+  .station .prog i { display: block; height: 100%; width: 0; background: #f2a541; }
+  #plate-area {
+    width: 300px; background: #20140d; border: 2px solid #4a2c1c; border-radius: 10px;
+    padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;
+  }
+  #plate-area h3 { font-size: 14px; letter-spacing: 2px; color: #f2a541; }
+  #active-dish { font-size: 17px; font-weight: bold; }
+  #active-steps { font-size: 14px; color: #c9a37e; }
+  #active-steps .done { color: #2fa98f; text-decoration: line-through; }
+  #plate {
+    margin-top: auto; text-align: center; padding: 8px; border-radius: 8px;
+    background: #33241a; color: #a98a68; font-size: 15px; cursor: default;
+  }
+  #plate.ready {
+    background: #2fa98f; color: #fff; font-weight: bold; cursor: pointer;
+    animation: pulse 0.9s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { transform: scale(1.04); } }
+  #plate-area .serve-hint { font-size: 12px; color: #a98a68; text-align: center; }
+  /* ---------- overlays ---------- */
+  .overlay {
+    position: absolute; inset: 0; background: rgba(12, 7, 4, 0.88);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; z-index: 10; text-align: center; padding: 20px;
+  }
+  .overlay.hidden { display: none; }
+  .overlay h2 { font-size: 40px; color: #ffd98a; letter-spacing: 3px; }
+  .overlay p { font-size: 17px; color: #e8d5b5; max-width: 560px; line-height: 1.5; }
+  .overlay .big { font-size: 22px; color: #fff; }
+  .overlay button {
+    font-size: 20px; font-weight: bold; padding: 12px 34px; border: none; border-radius: 10px;
+    background: #f2a541; color: #2b1d16; cursor: pointer; letter-spacing: 1px;
+  }
+  .overlay button:hover { background: #ffc95e; }
+  .overlay .keys { font-size: 14px; color: #c9a37e; }
+  #toast {
+    position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
+    background: #2fa98f; color: #fff; font-weight: bold; font-size: 16px;
+    padding: 8px 18px; border-radius: 20px; z-index: 20; opacity: 0; transition: opacity .25s;
+    pointer-events: none;
+  }
+  #toast.show { opacity: 1; }
+  #toast.bad { background: #d94f3d; }
 </style>
 </head>
 <body>
-<div id="wrap"><canvas id="game" width="960" height="600"></canvas></div>
+<div id="app">
+  <header>
+    <h1>THE NIGHT SHIFT DINER<small>COOK · SERVE · SURVIVE TILL DAWN</small></h1>
+    <div class="hud">
+      <span>⏱ <b id="timer">3:00</b></span>
+      <span>Score <b id="score">0</b></span>
+      <span>Tips <b id="tips">$0</b></span>
+      <span class="hearts" id="hearts">♥♥♥</span>
+    </div>
+  </header>
+
+  <div id="mid">
+    <div id="board">
+      <h2>ORDER BOARD</h2>
+      <div id="tickets"><p class="empty">No orders yet — the night is young.</p></div>
+    </div>
+    <div id="floor">
+      <h2>THE COUNTER — CUSTOMERS</h2>
+      <div id="seats"></div>
+    </div>
+  </div>
+
+  <div id="counter">
+    <span class="label">INGREDIENTS</span>
+    <span class="ing" data-ing="bun">Buns</span>
+    <span class="ing" data-ing="patty">Patties</span>
+    <span class="ing" data-ing="cheese">Cheese</span>
+    <span class="ing" data-ing="lettuce">Lettuce</span>
+    <span class="ing" data-ing="fries">Fries</span>
+    <span class="ing" data-ing="rings">Onion Rings</span>
+    <span class="ing" data-ing="cup">Shake Cups</span>
+  </div>
+
+  <div id="kitchen">
+    <div id="stations"></div>
+    <div id="plate-area">
+      <h3>NOW COOKING</h3>
+      <div id="active-dish">No order selected</div>
+      <div id="active-steps">Click an order ticket to start cooking.</div>
+      <div id="plate">— plate empty —</div>
+      <div class="serve-hint">Keys 1–4 work the stations · Space serves the ready plate</div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <div class="overlay" id="title-screen">
+    <h2>THE NIGHT SHIFT DINER</h2>
+    <p>You are the only cook on the night shift. Customers take a seat, pin their order on the board,
+       and wait — not forever. Cook each dish in order, station by station, and serve it while it is hot.
+       Fast service earns tips. A customer who waits too long storms out, and your reputation takes the hit.</p>
+    <p class="big">3-minute shift · 3 strikes and the diner closes early</p>
+    <button id="start-btn">START SHIFT</button>
+    <p class="keys">Click an order, then click the stations in sequence (or press 1–4). Press Space to serve the ready plate.</p>
+  </div>
+
+  <div class="overlay hidden" id="gameover-screen">
+    <h2 id="over-title">SHIFT OVER</h2>
+    <p class="big" id="over-score"></p>
+    <p id="over-detail"></p>
+    <button id="restart-btn">WORK ANOTHER SHIFT</button>
+  </div>
+</div>
+
 <script>
 'use strict';
-/* Rush Hour Kitchen — an original order-rush cooking game.
-   Orders arrive on the board with a countdown. Click ingredients on the
-   counter (or press 1-6) to build the dish on the plate, then SERVE
-   before the order's patience runs out. Correct dish: points + tip.
-   Wrong dish or expired order: points lost. One 3-minute shift. */
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-const W = 960, H = 600;
+/* The Night Shift Diner — a time-management cooking game.
+   Written from scratch for the make.fun best-cooking-game bounty. */
 
-/* ---- data ---- */
-const INGREDIENTS = [
-  { id: 'bun',     name: 'Bun',     key: '1', color: '#e8b96a', dark: '#b98a3e' },
-  { id: 'patty',   name: 'Patty',   key: '2', color: '#7a4a2b', dark: '#54301a' },
-  { id: 'lettuce', name: 'Lettuce', key: '3', color: '#58b368', dark: '#357a44' },
-  { id: 'tomato',  name: 'Tomato',  key: '4', color: '#e05252', dark: '#a52f2f' },
-  { id: 'cheese',  name: 'Cheese',  key: '5', color: '#f5c542', dark: '#c79a17' },
-  { id: 'sauce',   name: 'Sauce',   key: '6', color: '#f08a24', dark: '#b25f10' },
+// Surface page errors for the entry's own headless checks.
+window.__errs = [];
+window.addEventListener('error', (e) => window.__errs.push(String(e.message)));
+
+// ---------- data ----------
+const STATIONS = [
+  { id: 'grill',    name: 'Grill',    key: '1', hint: 'sear it hot' },
+  { id: 'fryer',    name: 'Fryer',    key: '2', hint: 'golden & crisp' },
+  { id: 'toppings', name: 'Toppings', key: '3', hint: 'dress it up' },
+  { id: 'plate',    name: 'Plate',    key: '4', hint: 'finish the dish' },
 ];
-const DISHES = [
-  { name: 'Classic',      recipe: ['bun', 'patty', 'lettuce', 'tomato'] },
-  { name: 'Cheese Melt',  recipe: ['bun', 'patty', 'cheese', 'sauce'] },
-  { name: 'Garden Stack', recipe: ['bun', 'lettuce', 'tomato', 'cheese'] },
-  { name: 'Double Trouble', recipe: ['bun', 'patty', 'patty', 'cheese', 'sauce'] },
-];
+const DISHES = {
+  'Burger':        { steps: ['grill', 'toppings', 'plate'], base: 100, ings: ['bun', 'patty', 'lettuce'] },
+  'Fries':         { steps: ['fryer', 'plate'],             base: 60,  ings: ['fries'] },
+  'Grilled Cheese':{ steps: ['grill', 'plate'],             base: 80,  ings: ['bun', 'cheese'] },
+  'Onion Rings':   { steps: ['fryer', 'toppings', 'plate'], base: 90,  ings: ['rings', 'lettuce'] },
+};
+const DISH_NAMES = Object.keys(DISHES);
+const CUSTOMER_NAMES = ['Mara', 'Theo', 'June', 'Oscar', 'Priya', 'Leo', 'Nina', 'Hugo'];
+const FACE_COLORS = ['#f2a541', '#2fa98f', '#d94f3d', '#7a9fd4', '#c98ad4', '#8fbf5a'];
 const SHIFT_SECONDS = 180;
-const ORDER_PATIENCE = 45;
-const ORDER_EVERY_MS = 14000;
+const STEP_MS = 1400;
+const PATIENCE_SECONDS = 45;
+const FIRST_CUSTOMER_MS = 2500;
 
-/* ---- state ---- */
+// ---------- rng (seeded from ?seed=, else time) ----------
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const params = new URLSearchParams(location.search);
+const seed = parseInt(params.get('seed') || '', 10);
+const rng = mulberry32(Number.isFinite(seed) ? seed : (Date.now() % 2147483647));
+
+// ---------- state ----------
 const state = {
-  screen: 'title', // title | playing | over
-  score: 0, served: 0, lost: 0, wrong: 0,
-  shiftLeft: SHIFT_SECONDS,
-  plate: [],           // ingredient ids on the plate, in order added
-  orders: [],          // { dish, left, max }
-  nextOrderIn: 4000,   // ms until next order spawns
-  message: '', messageUntil: 0, messageColor: '#2b2b3a',
-  hover: null,         // hovered bin id
+  running: false, over: false, overReason: '',
+  timeLeft: SHIFT_SECONDS, score: 0, tips: 0, served: 0, lost: 0, reputation: 3,
+  customers: [],           // {id, seat, name, dish, patience, maxPatience, color}
+  nextCustomerId: 1,
+  activeOrderId: null,     // customer id of the dish being cooked
+  stepIndex: 0,            // next step index of the active dish
+  stepActive: null,        // station id currently cooking, or null
+  stepProgress: 0,         // 0..1 of the active step
+  plateReady: false,
+  spawnIn: FIRST_CUSTOMER_MS,
   lastTick: 0,
 };
-let orderSeq = 0;
+const $ = (id) => document.getElementById(id);
+const el = {
+  timer: $('timer'), score: $('score'), tips: $('tips'), hearts: $('hearts'),
+  tickets: $('tickets'), seats: $('seats'), stations: $('stations'),
+  activeDish: $('active-dish'), activeSteps: $('active-steps'), plate: $('plate'),
+  title: $('title-screen'), over: $('gameover-screen'),
+  overTitle: $('over-title'), overScore: $('over-score'), overDetail: $('over-detail'),
+  toast: $('toast'),
+};
 
-function ing(id) { return INGREDIENTS.find(i => i.id === id); }
-function dishByName(name) { return DISHES.find(d => d.name === name); }
-
-function showMessage(text, color) {
-  state.message = text; state.messageColor = color || '#2b2b3a';
-  state.messageUntil = performance.now() + 1600;
-}
-
-function spawnOrder(dishName) {
-  const dish = dishName ? dishByName(dishName) : DISHES[Math.floor(Math.random() * DISHES.length)];
-  if (state.orders.length >= 3) return;
-  state.orders.push({ dish, left: ORDER_PATIENCE, max: ORDER_PATIENCE, key: ++orderSeq });
-}
-
-function sameMultiset(a, b) {
-  if (a.length !== b.length) return false;
-  const count = {};
-  for (const x of a) count[x] = (count[x] || 0) + 1;
-  for (const x of b) { if (!count[x]) return false; count[x]--; }
-  return true;
-}
-
-function servePlate() {
-  if (state.screen !== 'playing') return;
-  if (state.plate.length === 0) { showMessage('Plate is empty — add ingredients first!', '#a52f2f'); return; }
-  const idx = state.orders.findIndex(o => sameMultiset(state.plate, o.dish.recipe));
-  if (idx >= 0) {
-    const o = state.orders[idx];
-    const tip = Math.round(o.left) * 2;
-    state.score += 100 + tip;
-    state.served++;
-    showMessage('Served ' + o.dish.name + '! +'+ (100 + tip) + ' (tip $' + tip + ')', '#2e7d32');
-    beep(660, 0.12); setTimeout(() => beep(880, 0.14), 110);
-    state.orders.splice(idx, 1);
-  } else {
-    state.score = Math.max(0, state.score - 15);
-    state.wrong++;
-    showMessage('Wrong dish! The customer sent it back. -15', '#a52f2f');
-    beep(180, 0.2);
-  }
-  state.plate = [];
-}
-
-function trashPlate() {
-  if (state.screen !== 'playing') return;
-  state.plate = [];
-  showMessage('Plate cleared.', '#5a5348');
-}
-
-function startShift() {
-  state.screen = 'playing';
-  state.score = 0; state.served = 0; state.lost = 0; state.wrong = 0;
-  state.shiftLeft = SHIFT_SECONDS;
-  state.plate = [];
-  state.orders = [];
-  state.nextOrderIn = 2500;
-  state.message = '';
-  spawnOrder('Classic');
-}
-
-function endShift() {
-  state.screen = 'over';
-  beep(440, 0.15); setTimeout(() => beep(330, 0.2), 150); setTimeout(() => beep(220, 0.3), 320);
-}
-
-/* ---- audio (tiny WebAudio beeps, guarded) ---- */
+// ---------- audio (tiny WebAudio beeps, no assets) ----------
 let audioCtx = null;
-function beep(freq, dur) {
+function beep(freq, dur, type, vol) {
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-    o.type = 'sine'; o.frequency.value = freq;
-    g.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    o.type = type || 'sine'; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol || 0.08, audioCtx.currentTime);
     g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
     o.connect(g); g.connect(audioCtx.destination);
     o.start(); o.stop(audioCtx.currentTime + dur);
-  } catch (e) { /* headless / no audio: stay silent */ }
+  } catch (e) { /* sound is optional */ }
 }
+const sfx = {
+  click: () => beep(660, 0.07, 'square', 0.05),
+  step:  () => { beep(880, 0.09, 'sine', 0.07); setTimeout(() => beep(1174, 0.12, 'sine', 0.07), 90); },
+  serve: () => { beep(523, 0.1, 'triangle', 0.09); setTimeout(() => beep(659, 0.1, 'triangle', 0.09), 100); setTimeout(() => beep(784, 0.18, 'triangle', 0.09), 200); },
+  bad:   () => beep(160, 0.18, 'sawtooth', 0.06),
+  leave: () => beep(220, 0.25, 'sawtooth', 0.06),
+};
 
-/* ---- update ---- */
-function update(dtMs) {
-  if (state.screen !== 'playing') return;
-  state.shiftLeft -= dtMs / 1000;
-  if (state.shiftLeft <= 0) { state.shiftLeft = 0; endShift(); return; }
-  state.nextOrderIn -= dtMs;
-  if (state.nextOrderIn <= 0) { spawnOrder(); state.nextOrderIn = ORDER_EVERY_MS; }
-  for (let i = state.orders.length - 1; i >= 0; i--) {
-    const o = state.orders[i];
-    o.left -= dtMs / 1000;
-    if (o.left <= 0) {
-      state.orders.splice(i, 1);
-      state.lost++;
-      state.score = Math.max(0, state.score - 25);
-      showMessage('Order expired — a customer walked out! -25', '#a52f2f');
-      beep(140, 0.25);
-    }
-  }
-}
-
-/* ---- drawing helpers ---- */
-function rr(x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-function text(str, x, y, size, color, align, weight) {
-  ctx.fillStyle = color;
-  ctx.font = (weight || 'bold') + ' ' + size + 'px Arial, sans-serif';
-  ctx.textAlign = align || 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(str, x, y);
-}
+// ---------- helpers ----------
 function fmtTime(s) {
   s = Math.max(0, Math.ceil(s));
   return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 }
-function drawIngredientIcon(id, cx, cy, r) {
-  const c = ing(id);
-  ctx.fillStyle = c.color;
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = c.dark; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
-  if (id === 'bun') { ctx.fillStyle = '#fff3d6'; ctx.beginPath(); ctx.arc(cx - r * 0.35, cy - r * 0.3, r * 0.16, 0, Math.PI * 2); ctx.arc(cx + r * 0.3, cy - r * 0.25, r * 0.16, 0, Math.PI * 2); ctx.fill(); }
-  if (id === 'lettuce') { ctx.strokeStyle = c.dark; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx - r * 0.6, cy); ctx.quadraticCurveTo(cx, cy - r * 0.7, cx + r * 0.6, cy); ctx.stroke(); }
-  if (id === 'tomato') { ctx.fillStyle = '#ff8a8a'; ctx.beginPath(); ctx.arc(cx, cy, r * 0.45, 0, Math.PI * 2); ctx.fill(); }
-  if (id === 'cheese') { ctx.fillStyle = c.dark; ctx.beginPath(); ctx.arc(cx - r * 0.3, cy, r * 0.1, 0, Math.PI * 2); ctx.arc(cx + r * 0.3, cy + r * 0.2, r * 0.1, 0, Math.PI * 2); ctx.fill(); }
-  if (id === 'sauce') { ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(cx - r * 0.55, cy - r * 0.2); ctx.quadraticCurveTo(cx, cy + r * 0.5, cx + r * 0.55, cy - r * 0.2); ctx.stroke(); }
-  if (id === 'patty') { ctx.fillStyle = '#5d3a20'; rr(cx - r * 0.62, cy - r * 0.28, r * 1.24, r * 0.56, r * 0.28); ctx.fill(); }
+function toast(msg, bad) {
+  el.toast.textContent = msg;
+  el.toast.className = bad ? 'show bad' : 'show';
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { el.toast.className = ''; }, 1600);
+}
+function activeCustomer() {
+  return state.customers.find((c) => c.id === state.activeOrderId) || null;
+}
+function activeDishDef() {
+  const c = activeCustomer();
+  return c ? DISHES[c.dish] : null;
 }
 
-/* ---- layout ---- */
-const HEADER_H = 64;
-const BOARD = { x: 24, y: HEADER_H + 16, w: 300, h: 500 };
-const BINS = INGREDIENTS.map((ingr, i) => ({
-  id: ingr.id, x: 352 + (i % 3) * 196, y: HEADER_H + 44 + Math.floor(i / 3) * 132, w: 180, h: 116,
-}));
-const PLATE = { x: 352, y: 372, w: 580, h: 120 };
-const SERVE_BTN = { x: 352, y: 508, w: 280, h: 56 };
-const TRASH_BTN = { x: 652, y: 508, w: 280, h: 56 };
-const START_BTN = { x: 330, y: 400, w: 300, h: 64 };
-
-function drawHeader() {
-  ctx.fillStyle = '#2b2b3a'; ctx.fillRect(0, 0, W, HEADER_H);
-  text('RUSH HOUR KITCHEN', 24, 33, 28, '#ffd166', 'left');
-  const low = state.shiftLeft <= 30;
-  text('SHIFT  ' + fmtTime(state.shiftLeft), 620, 33, 26, low ? '#ff6b6b' : '#ffffff', 'left');
-  text('SCORE  ' + state.score, W - 24, 33, 26, '#ffd166', 'right');
+// ---------- customers ----------
+function spawnCustomer(dishName) {
+  const freeSeat = [0, 1, 2, 3].find((s) => !state.customers.some((c) => c.seat === s));
+  if (freeSeat === undefined) return null;
+  const dish = dishName || DISH_NAMES[Math.floor(rng() * DISH_NAMES.length)];
+  const c = {
+    id: state.nextCustomerId++,
+    seat: freeSeat,
+    name: CUSTOMER_NAMES[Math.floor(rng() * CUSTOMER_NAMES.length)],
+    dish,
+    patience: PATIENCE_SECONDS,
+    maxPatience: PATIENCE_SECONDS,
+    color: FACE_COLORS[Math.floor(rng() * FACE_COLORS.length)],
+  };
+  state.customers.push(c);
+  if (state.activeOrderId === null) selectOrder(c.id);
+  render();
+  return c;
 }
-
-function drawBoard() {
-  ctx.fillStyle = '#fff8ec'; rr(BOARD.x, BOARD.y, BOARD.w, BOARD.h, 14); ctx.fill();
-  ctx.strokeStyle = '#d9c39a'; ctx.lineWidth = 2; rr(BOARD.x, BOARD.y, BOARD.w, BOARD.h, 14); ctx.stroke();
-  text('ORDER BOARD', BOARD.x + BOARD.w / 2, BOARD.y + 26, 20, '#5a4632');
-  ctx.fillStyle = '#d9c39a'; ctx.fillRect(BOARD.x + 20, BOARD.y + 46, BOARD.w - 40, 2);
-  if (state.orders.length === 0) {
-    text('No orders yet —', BOARD.x + BOARD.w / 2, BOARD.y + 130, 17, '#8a7a63');
-    text('the rush is coming!', BOARD.x + BOARD.w / 2, BOARD.y + 156, 17, '#8a7a63');
+function removeCustomer(c, angry) {
+  state.customers = state.customers.filter((x) => x.id !== c.id);
+  if (state.activeOrderId === c.id) {
+    state.activeOrderId = null; state.stepIndex = 0; state.stepActive = null; state.plateReady = false;
+    const next = state.customers[0];
+    if (next) selectOrder(next.id);
   }
-  state.orders.forEach((o, i) => {
-    const y = BOARD.y + 64 + i * 138;
-    const urgent = o.left <= 10;
-    ctx.fillStyle = urgent ? '#ffe3e3' : '#ffffff';
-    rr(BOARD.x + 14, y, BOARD.w - 28, 122, 10); ctx.fill();
-    ctx.strokeStyle = urgent ? '#e05252' : '#e0d3b8'; ctx.lineWidth = 2;
-    rr(BOARD.x + 14, y, BOARD.w - 28, 122, 10); ctx.stroke();
-    text(o.dish.name, BOARD.x + 28, y + 22, 19, '#2b2b3a', 'left');
-    text(fmtTime(o.left), BOARD.x + BOARD.w - 28, y + 22, 19, urgent ? '#c22e2e' : '#2e7d32', 'right');
-    const frac = Math.max(0, o.left / o.max);
-    ctx.fillStyle = '#eee2cb'; rr(BOARD.x + 28, y + 40, BOARD.w - 56, 10, 5); ctx.fill();
-    ctx.fillStyle = frac > 0.5 ? '#58b368' : frac > 0.25 ? '#f5c542' : '#e05252';
-    if (frac > 0) { rr(BOARD.x + 28, y + 40, (BOARD.w - 56) * frac, 10, 5); ctx.fill(); }
-    o.dish.recipe.forEach((rid, j) => {
-      const cx = BOARD.x + 46 + j * 52, cy = y + 82;
-      drawIngredientIcon(rid, cx, cy, 17);
-      text(ing(rid).name, cx, cy + 32, 11, '#5a4632');
-    });
-  });
-  text('Served ' + state.served + '   •   Lost ' + state.lost, BOARD.x + BOARD.w / 2, BOARD.y + BOARD.h - 18, 15, '#8a7a63');
+  if (angry) {
+    state.lost++;
+    state.reputation--;
+    sfx.leave();
+    toast(c.name + ' stormed out! Reputation down.', true);
+    if (state.reputation <= 0) endShift('The diner lost its reputation — the night ends early.');
+  }
+  render();
 }
 
-function drawBins() {
-  text('INGREDIENTS — click or press 1-6', 352, HEADER_H + 30, 15, '#8a6a42', 'left');
-  BINS.forEach(b => {
-    const c = ing(b.id);
-    const hov = state.hover === b.id;
-    ctx.fillStyle = hov ? '#fff3d6' : '#ffffff';
-    rr(b.x, b.y, b.w, b.h, 12); ctx.fill();
-    ctx.strokeStyle = hov ? c.dark : '#d9c39a'; ctx.lineWidth = hov ? 3 : 2;
-    rr(b.x, b.y, b.w, b.h, 12); ctx.stroke();
-    drawIngredientIcon(b.id, b.x + 40, b.y + 46, 26);
-    text(c.name, b.x + 78, b.y + 34, 20, '#2b2b3a', 'left');
-    text('key ' + c.key, b.x + 78, b.y + 62, 14, '#8a7a63', 'left');
-    ctx.fillStyle = '#f0e2c8'; rr(b.x + b.w - 44, b.y + b.h - 34, 32, 22, 6); ctx.fill();
-    text(c.key, b.x + b.w - 28, b.y + b.h - 22, 15, '#5a4632');
-  });
+// ---------- cooking ----------
+function selectOrder(id) {
+  const c = state.customers.find((x) => x.id === id);
+  if (!c) return;
+  state.activeOrderId = id;
+  state.stepIndex = 0; state.stepActive = null; state.stepProgress = 0; state.plateReady = false;
+  sfx.click();
+  render();
+}
+function pressStation(stationId) {
+  if (!state.running || state.over) return;
+  const dish = activeDishDef();
+  if (!dish) { toast('Pick an order ticket first.', true); return; }
+  if (state.plateReady) { toast('The plate is ready — serve it! (Space)', true); return; }
+  if (state.stepActive) return; // a step is already cooking
+  const want = dish.steps[state.stepIndex];
+  if (stationId !== want) {
+    sfx.bad();
+    toast('Wrong station — ' + dish.steps[state.stepIndex] + ' comes next.', true);
+    return;
+  }
+  state.stepActive = stationId;
+  state.stepProgress = 0;
+  sfx.click();
+  render();
+}
+function completeStep() {
+  const dish = activeDishDef();
+  state.stepActive = null;
+  state.stepProgress = 0;
+  state.stepIndex++;
+  sfx.step();
+  if (state.stepIndex >= dish.steps.length) {
+    state.plateReady = true;
+    toast('Plate ready — serve it! (Space)');
+  }
+  render();
+}
+function serve() {
+  if (!state.running || state.over) return;
+  if (!state.plateReady) { toast('Nothing ready to serve yet.', true); return; }
+  const c = activeCustomer();
+  const dish = DISHES[c.dish];
+  const tip = Math.round(50 * (c.patience / c.maxPatience));
+  state.score += dish.base + tip;
+  state.tips += tip;
+  state.served++;
+  sfx.serve();
+  toast('Served ' + c.dish + ' to ' + c.name + ' — +' + dish.base + ' pts, $' + tip + ' tip!');
+  removeCustomer(c, false);
+  render();
 }
 
-function drawPlateArea() {
-  ctx.fillStyle = '#fff8ec'; rr(PLATE.x, PLATE.y, PLATE.w, PLATE.h, 14); ctx.fill();
-  ctx.strokeStyle = '#d9c39a'; ctx.lineWidth = 2; rr(PLATE.x, PLATE.y, PLATE.w, PLATE.h, 14); ctx.stroke();
-  text('YOUR PLATE', PLATE.x + 18, PLATE.y + 20, 15, '#8a6a42', 'left');
-  if (state.plate.length === 0) {
-    text('Empty — add ingredients from the counter', PLATE.x + PLATE.w / 2, PLATE.y + 68, 17, '#a08a68');
+// ---------- flow ----------
+function startShift() {
+  Object.assign(state, {
+    running: true, over: false, overReason: '',
+    timeLeft: SHIFT_SECONDS, score: 0, tips: 0, served: 0, lost: 0, reputation: 3,
+    customers: [], nextCustomerId: 1, activeOrderId: null,
+    stepIndex: 0, stepActive: null, stepProgress: 0, plateReady: false,
+    spawnIn: FIRST_CUSTOMER_MS, lastTick: performance.now(),
+  });
+  el.title.classList.add('hidden');
+  el.over.classList.add('hidden');
+  sfx.click();
+  render();
+}
+function endShift(reason) {
+  if (state.over) return;
+  state.running = false; state.over = true; state.overReason = reason;
+  el.overTitle.textContent = reason.indexOf('reputation') >= 0 ? 'DINER CLOSED EARLY' : 'SHIFT OVER';
+  el.overScore.textContent = 'Final score: ' + state.score + '  ·  Tips: $' + state.tips;
+  el.overDetail.textContent = reason + ' Dishes served: ' + state.served + '. Customers lost: ' + state.lost + '.';
+  el.over.classList.remove('hidden');
+  sfx.serve();
+  render();
+}
+
+// ---------- render ----------
+function buildStationsOnce() {
+  el.stations.innerHTML = STATIONS.map((s) =>
+    '<div class="station" id="st-' + s.id + '" data-station="' + s.id + '">' +
+    '<span class="key">' + s.key + '</span><div class="name">' + s.name + '</div>' +
+    '<div class="hint">' + s.hint + '</div><div class="prog"><i></i></div></div>'
+  ).join('');
+  el.stations.querySelectorAll('.station').forEach((node) => {
+    node.addEventListener('click', () => pressStation(node.dataset.station));
+  });
+}
+function render() {
+  el.timer.textContent = fmtTime(state.timeLeft);
+  el.timer.classList.toggle('low', state.timeLeft <= 30 && state.running);
+  el.score.textContent = state.score;
+  el.tips.textContent = '$' + state.tips;
+  el.hearts.textContent = '♥'.repeat(Math.max(0, state.reputation)) + '♡'.repeat(Math.max(0, 3 - state.reputation));
+
+  // order board
+  if (state.customers.length === 0) {
+    el.tickets.innerHTML = '<p class="empty">No orders yet — the night is young.</p>';
   } else {
-    ctx.fillStyle = '#e8e2d2';
-    ctx.beginPath(); ctx.ellipse(PLATE.x + 150, PLATE.y + 84, 130, 22, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#b9a888'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.ellipse(PLATE.x + 150, PLATE.y + 84, 130, 22, 0, 0, Math.PI * 2); ctx.stroke();
-    const n = state.plate.length;
-    state.plate.forEach((rid, i) => {
-      const c = ing(rid);
-      const y = PLATE.y + 78 - i * 10;
-      ctx.fillStyle = c.color;
-      rr(PLATE.x + 50, y - 8, 200, 14, 7); ctx.fill();
-      ctx.strokeStyle = c.dark; ctx.lineWidth = 1.5;
-      rr(PLATE.x + 50, y - 8, 200, 14, 7); ctx.stroke();
+    el.tickets.innerHTML = state.customers.map((c) => {
+      const d = DISHES[c.dish];
+      const pct = Math.round(100 * c.patience / c.maxPatience);
+      return '<div class="ticket' + (c.id === state.activeOrderId ? ' sel' : '') + '" data-order="' + c.id + '">' +
+        '<div class="dish">' + c.dish + '</div>' +
+        '<div class="steps">' + d.steps.join(' → ') + '</div>' +
+        '<div class="tseat">Seat ' + (c.seat + 1) + ' · ' + c.name + '</div>' +
+        '<div class="mini"><i style="width:' + pct + '%"></i></div></div>';
+    }).join('');
+    el.tickets.querySelectorAll('.ticket').forEach((node) => {
+      node.addEventListener('click', () => selectOrder(parseInt(node.dataset.order, 10)));
     });
-    text('On the plate:', PLATE.x + 320, PLATE.y + 48, 15, '#8a6a42', 'left');
-    text(state.plate.map(rid => ing(rid).name).join(' + '),
-      PLATE.x + 320, PLATE.y + 74, 15, '#2b2b3a', 'left');
-    text(state.plate.length + ' ingredient' + (state.plate.length > 1 ? 's' : '') + ' on the plate',
-      PLATE.x + 320, PLATE.y + 98, 14, '#8a7a63', 'left');
   }
-  ctx.fillStyle = '#2e7d32'; rr(SERVE_BTN.x, SERVE_BTN.y, SERVE_BTN.w, SERVE_BTN.h, 12); ctx.fill();
-  text('SERVE  (Space)', SERVE_BTN.x + SERVE_BTN.w / 2, SERVE_BTN.y + 29, 22, '#ffffff');
-  ctx.fillStyle = '#b03a2e'; rr(TRASH_BTN.x, TRASH_BTN.y, TRASH_BTN.w, TRASH_BTN.h, 12); ctx.fill();
-  text('TRASH PLATE  (Del)', TRASH_BTN.x + TRASH_BTN.w / 2, TRASH_BTN.y + 29, 20, '#ffffff');
-}
 
-function drawMessage() {
-  if (!state.message || performance.now() > state.messageUntil) return;
-  ctx.font = 'bold 18px Arial, sans-serif';
-  const w = ctx.measureText(state.message).width + 44;
-  ctx.fillStyle = 'rgba(43,43,58,0.92)';
-  rr(W / 2 - w / 2, 84, w, 40, 20); ctx.fill();
-  text(state.message, W / 2, 105, 18, state.messageColor === '#2b2b3a' ? '#ffffff' : state.messageColor);
-}
+  // seats
+  el.seats.innerHTML = [0, 1, 2, 3].map((s) => {
+    const c = state.customers.find((x) => x.seat === s);
+    if (!c) return '<div class="seat"><span class="empty-msg">empty stool</span></div>';
+    const pct = c.patience / c.maxPatience;
+    const cls = pct < 0.33 ? 'crit' : pct < 0.6 ? 'warn' : '';
+    return '<div class="seat occupied"><div class="face" style="background:' + c.color + '">☺</div>' +
+      '<div class="who">' + c.name + ' · Seat ' + (s + 1) + '</div>' +
+      '<div class="want">wants: ' + c.dish + '</div>' +
+      '<div class="pat"><i class="' + cls + '" style="width:' + Math.round(100 * pct) + '%"></i></div></div>';
+  }).join('');
 
-function drawTitle() {
-  ctx.fillStyle = 'rgba(35,32,43,0.94)'; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#ffd166'; rr(180, 96, 600, 130, 18); ctx.fill();
-  text('RUSH HOUR', W / 2, 138, 52, '#2b2b3a');
-  text('KITCHEN', W / 2, 192, 52, '#b03a2e');
-  text('Orders fly in. Build each dish on the plate.', W / 2, 268, 20, '#ffffff');
-  text('Click ingredients or press 1-6, then SERVE before the timer runs out.', W / 2, 298, 18, '#e8e2d2');
-  text('One shift lasts 3 minutes. Correct dish: +100 and a tip.', W / 2, 324, 18, '#e8e2d2');
-  text('Wrong dish -15. Expired order -25.', W / 2, 350, 18, '#e8e2d2');
-  ctx.fillStyle = '#2e7d32'; rr(START_BTN.x, START_BTN.y, START_BTN.w, START_BTN.h, 14); ctx.fill();
-  text('START SHIFT  (Enter)', W / 2, START_BTN.y + 33, 22, '#ffffff');
-  text('A game by an AI agent for make.fun', W / 2, 500, 14, '#9a94a8');
-}
+  // stations
+  const dish = activeDishDef();
+  STATIONS.forEach((s) => {
+    const node = $('st-' + s.id);
+    if (!node) return;
+    const isNext = dish && !state.plateReady && dish.steps[state.stepIndex] === s.id && !state.stepActive;
+    const isBusy = state.stepActive === s.id;
+    node.classList.toggle('next', !!isNext);
+    node.classList.toggle('busy', !!isBusy);
+    node.querySelector('.prog i').style.width = isBusy ? Math.round(100 * state.stepProgress) + '%' : '0';
+  });
 
-function drawOver() {
-  ctx.fillStyle = 'rgba(35,32,43,0.94)'; ctx.fillRect(0, 0, W, H);
-  text('SHIFT OVER!', W / 2, 150, 52, '#ffd166');
-  text('Final score: ' + state.score, W / 2, 230, 34, '#ffffff');
-  text('Dishes served: ' + state.served + '    Orders lost: ' + state.lost + '    Wrong dishes: ' + state.wrong,
-    W / 2, 286, 20, '#e8e2d2');
-  const best = state.served >= 8 ? 'Head chef material!' : state.served >= 4 ? 'A solid shift!' : 'The rush got the better of you — try again!';
-  text(best, W / 2, 330, 20, '#ffd166');
-  ctx.fillStyle = '#2e7d32'; rr(START_BTN.x, START_BTN.y, START_BTN.w, START_BTN.h, 14); ctx.fill();
-  text('PLAY AGAIN  (R)', W / 2, START_BTN.y + 33, 22, '#ffffff');
-}
-
-function draw() {
-  ctx.fillStyle = '#f7ead7'; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#f3ddba';
-  for (let x = 0; x < W; x += 48) ctx.fillRect(x, HEADER_H, 24, 8);
-  ctx.fillStyle = '#e8d3ac'; ctx.fillRect(0, H - 26, W, 26);
-  ctx.fillStyle = '#d9c39a';
-  for (let x = 0; x < W; x += 52) ctx.fillRect(x, H - 26, 26, 26);
-  drawHeader();
-  if (state.screen === 'title') { drawBoard(); drawBins(); drawPlateArea(); drawTitle(); return; }
-  drawBoard(); drawBins(); drawPlateArea(); drawMessage();
-  if (state.screen === 'over') drawOver();
-}
-
-/* ---- input ---- */
-function pointIn(r, x, y) { return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h; }
-function canvasPos(e) {
-  const r = canvas.getBoundingClientRect();
-  return { x: (e.clientX - r.left) * (W / r.width), y: (e.clientY - r.top) * (H / r.height) };
-}
-canvas.addEventListener('click', e => {
-  const p = canvasPos(e);
-  if (state.screen === 'title') { if (pointIn(START_BTN, p.x, p.y)) startShift(); return; }
-  if (state.screen === 'over') { if (pointIn(START_BTN, p.x, p.y)) startShift(); return; }
-  for (const b of BINS) {
-    if (pointIn(b, p.x, p.y)) {
-      if (state.plate.length < 8) { state.plate.push(b.id); beep(520, 0.06); }
-      return;
+  // active dish + plate
+  if (!dish) {
+    el.activeDish.textContent = 'No order selected';
+    el.activeSteps.textContent = state.customers.length ? 'Click an order ticket to start cooking.' : 'Waiting for the first customer…';
+    el.plate.textContent = '— plate empty —';
+    el.plate.className = '';
+  } else {
+    const c = activeCustomer();
+    el.activeDish.textContent = c.dish + ' for ' + c.name;
+    el.activeSteps.innerHTML = dish.steps.map((st, i) =>
+      '<span class="' + (i < state.stepIndex ? 'done' : '') + '">' + (i + 1) + '. ' + st + '</span>'
+    ).join(' → ');
+    if (state.plateReady) {
+      el.plate.textContent = '🍽 ' + c.dish + ' — READY TO SERVE (Space)';
+      el.plate.className = 'ready';
+    } else if (state.stepActive) {
+      el.plate.textContent = 'Cooking at the ' + state.stepActive + '…';
+      el.plate.className = '';
+    } else {
+      el.plate.textContent = 'Next: ' + dish.steps[state.stepIndex];
+      el.plate.className = '';
     }
   }
-  if (pointIn(SERVE_BTN, p.x, p.y)) servePlate();
-  else if (pointIn(TRASH_BTN, p.x, p.y)) trashPlate();
-});
-canvas.addEventListener('mousemove', e => {
-  const p = canvasPos(e);
-  const hit = BINS.find(b => pointIn(b, p.x, p.y));
-  state.hover = hit ? hit.id : null;
-});
-document.addEventListener('keydown', e => {
-  if (state.screen === 'title' && e.key === 'Enter') { startShift(); return; }
-  if (state.screen === 'over' && (e.key === 'r' || e.key === 'R' || e.key === 'Enter')) { startShift(); return; }
-  if (state.screen !== 'playing') return;
-  const ingr = INGREDIENTS.find(i => i.key === e.key);
-  if (ingr) { if (state.plate.length < 8) { state.plate.push(ingr.id); beep(520, 0.06); } return; }
-  if (e.key === ' ') { e.preventDefault(); servePlate(); }
-  if (e.key === 'Delete' || e.key === 'Backspace') trashPlate();
-});
 
-/* ---- deterministic screenshot states (?shot=start|play|end) ---- */
-function applyShot() {
-  const q = new URLSearchParams(location.search);
-  const shot = q.get('shot');
-  if (!shot) return;
-  if (shot === 'start') { state.screen = 'title'; }
-  if (shot === 'play') {
-    state.screen = 'playing';
-    state.score = 240; state.served = 2; state.lost = 0;
-    state.shiftLeft = 134;
-    state.plate = ['bun', 'patty', 'lettuce'];
-    state.orders = [
-      { dish: dishByName('Classic'), left: 32, max: ORDER_PATIENCE, key: 1 },
-      { dish: dishByName('Cheese Melt'), left: 18, max: ORDER_PATIENCE, key: 2 },
-    ];
-    state.nextOrderIn = 9000;
-  }
-  if (shot === 'end') {
-    state.screen = 'over';
-    state.score = 1240; state.served = 9; state.lost = 2; state.wrong = 1;
-    state.shiftLeft = 0;
-  }
+  // ingredients highlight
+  const need = dish ? dish.ings : [];
+  document.querySelectorAll('.ing').forEach((node) => {
+    node.classList.toggle('need', need.includes(node.dataset.ing));
+  });
 }
-applyShot();
 
-/* ---- main loop ---- */
-let last = performance.now();
-function loop(now) {
-  const dt = Math.min(100, now - last);
-  last = now;
-  update(dt);
-  draw();
-  requestAnimationFrame(loop);
+// ---------- main loop ----------
+function tick(now) {
+  const dt = Math.min(0.5, (now - state.lastTick) / 1000);
+  state.lastTick = now;
+  if (state.running && !state.over) {
+    state.timeLeft -= dt;
+    if (state.timeLeft <= 0) { state.timeLeft = 0; endShift('The clock hit dawn — the shift is over.'); }
+    if (state.stepActive) {
+      state.stepProgress += (dt * 1000) / STEP_MS;
+      if (state.stepProgress >= 1) completeStep();
+    }
+    state.customers.slice().forEach((c) => {
+      c.patience -= dt;
+      if (c.patience <= 0) removeCustomer(c, true);
+    });
+    state.spawnIn -= dt * 1000;
+    if (state.spawnIn <= 0 && state.customers.length < 4) {
+      spawnCustomer();
+      state.spawnIn = 10000 + rng() * 6000;
+    }
+    render();
+  }
+  requestAnimationFrame(tick);
 }
-requestAnimationFrame(loop);
 
-/* test hook (used by the maker's own verification only) */
-window.__game = { state, startShift, servePlate, trashPlate, spawnOrder, DISHES, INGREDIENTS };
+// ---------- input ----------
+document.addEventListener('keydown', (e) => {
+  if (!state.running || state.over) return;
+  if (e.key >= '1' && e.key <= '4') {
+    pressStation(STATIONS[parseInt(e.key, 10) - 1].id);
+  } else if (e.key === ' ') {
+    e.preventDefault();
+    serve();
+  }
+});
+$('plate').addEventListener('click', serve);
+$('start-btn').addEventListener('click', startShift);
+$('restart-btn').addEventListener('click', startShift);
+
+// ---------- shot staging (deterministic scenes for screenshots) ----------
+function stageShot(name) {
+  if (name === 'start') return; // title screen over the empty kitchen
+  startShift();
+  if (name === 'play') {
+    spawnCustomer('Burger'); spawnCustomer('Fries'); spawnCustomer('Onion Rings');
+    selectOrder(state.customers[0].id);
+    state.stepIndex = 1; state.stepActive = 'toppings'; state.stepProgress = 0.5;
+    state.timeLeft = 134;
+  } else if (name === 'serve') {
+    spawnCustomer('Grilled Cheese'); spawnCustomer('Burger');
+    selectOrder(state.customers[0].id);
+    state.stepIndex = 2; state.plateReady = true;
+    state.timeLeft = 92;
+  } else if (name === 'end') {
+    state.score = 480; state.tips = 130; state.served = 5; state.lost = 1;
+    state.timeLeft = 0;
+    endShift('The clock hit dawn — the shift is over.');
+  }
+  render();
+}
+
+// ---------- boot ----------
+buildStationsOnce();
+render();
+requestAnimationFrame((t) => { state.lastTick = t; requestAnimationFrame(tick); });
+if (params.get('shot')) stageShot(params.get('shot'));
+
+// Test + automation hook (the game's own state, used by the entry's headless checks).
+window.__diner = {
+  state,
+  start: startShift,
+  selectOrder,
+  pressStation,
+  serve,
+  spawnCustomer,
+  setTimer: (s) => { state.timeLeft = s; render(); },
+};
 </script>
 </body>
 </html>
